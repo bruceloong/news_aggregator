@@ -1,6 +1,12 @@
+#!/usr/bin/env python
+# -*- coding: utf-8 -*-
+
 import re
+import random
 from bs4 import BeautifulSoup
-from datetime import datetime
+from datetime import datetime, timedelta
+import time
+import requests
 
 from src.scrapers.base_scraper import BaseScraper
 
@@ -23,6 +29,32 @@ class SinaScraper(BaseScraper):
             'https://finance.sina.com.cn/roll/index.d.html?cid=56593',  # 证券要闻
             'https://finance.sina.com.cn/roll/index.d.html?cid=57495',  # 科技要闻
         ]
+    
+    def get_html(self, url, params=None, retries=3):
+        """
+        重写父类的get_html方法，指定编码为utf-8
+        
+        Args:
+            url (str): 网页URL
+            params (dict, optional): 请求参数
+            retries (int, optional): 重试次数
+            
+        Returns:
+            str: HTML内容，如果获取失败则返回空字符串
+        """
+        for i in range(retries):
+            try:
+                response = requests.get(url, headers=self.headers, params=params, timeout=10)
+                response.raise_for_status()
+                # 明确指定编码为utf-8
+                response.encoding = 'utf-8'
+                return response.text
+            except Exception as e:
+                self.logger.error(f"获取HTML失败 ({i+1}/{retries}): {url}, 错误: {str(e)}")
+                if i < retries - 1:
+                    # 随机等待1-3秒后重试
+                    time.sleep(random.uniform(1, 3))
+        return ""
     
     def parse_news_list(self, html):
         """
@@ -57,20 +89,55 @@ class SinaScraper(BaseScraper):
                 
                 time_str = time_span.text.strip()
                 
-                # 判断是否是今天的新闻
-                if not self.is_recent(time_str, '%H:%M'):
-                    continue
+                # 修改日期解析逻辑
+                # 新浪财经的时间格式通常是 "(03月10日 16:20)"
+                # 先去掉括号
+                time_str = time_str.strip('()')
                 
-                news_list.append({
-                    'title': title,
-                    'url': url,
-                    'publish_time': time_str,
-                    'source': self.source_name
-                })
+                # 判断是否是最近24小时的新闻
+                # 使用自定义方法判断，而不是调用is_recent
+                if self.is_news_recent(time_str):
+                    news_list.append({
+                        'title': title,
+                        'url': url,
+                        'publish_time': time_str,
+                        'source': self.source_name
+                    })
             except Exception as e:
                 self.logger.error(f"解析新闻项失败: {str(e)}")
         
         return news_list
+    
+    def is_news_recent(self, time_str):
+        """
+        判断新闻是否是最近24小时发布的
+        
+        Args:
+            time_str (str): 时间字符串，格式如 "03月10日 16:20"
+            
+        Returns:
+            bool: 是否是最近24小时发布的
+        """
+        try:
+            # 处理月日时分格式
+            current_year = datetime.now().year
+            # 将"月"和"日"替换为"-"
+            time_str = time_str.replace('月', '-').replace('日', ' ')
+            # 构建完整的时间字符串，加上年份
+            full_time_str = f"{current_year}-{time_str}"
+            
+            # 解析时间
+            news_time = datetime.strptime(full_time_str, "%Y-%m-%d %H:%M")
+            
+            # 如果解析出的月份大于当前月份，说明是去年的新闻
+            if news_time.month > datetime.now().month:
+                news_time = news_time.replace(year=current_year - 1)
+                
+            # 判断是否在最近24小时内
+            return datetime.now() - news_time <= timedelta(hours=24)
+        except Exception as e:
+            self.logger.error(f"日期解析失败: {time_str}, 错误: {str(e)}")
+            return False
     
     def parse_news_detail(self, url):
         """

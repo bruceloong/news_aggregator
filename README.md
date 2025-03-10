@@ -62,7 +62,7 @@ python3 src/main.py
 ### 启动 Web 界面（可选）
 
 ```bash
-python src/web_app.py
+python3 src/web_app.py
 ```
 
 然后在浏览器中访问 http://localhost:8000
