@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>财经新闻聚合器</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <header>
+        <h1>财经新闻聚合器</h1>
+    </header>
+    
+    <main>
+        <section class="reports">
+            <h2>最新报告</h2>
+            <ul>
+                {% for report in reports %}
+                <li>
+                    <a href="/report/{{ report.filename }}">{{ report.date }}</a>
+                </li>
+                {% endfor %}
+            </ul>
+        </section>
+    </main>
+    
+    <footer>
+        <p>&copy; 2023 财经新闻聚合器</p>
+    </footer>
+</body>
+</html>
